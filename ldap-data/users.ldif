@@ -28,4 +28,4 @@ cn: Teste BNDES
 sn: User
 givenName: Teste
 mail: testuser@bndes.gov.br
-userPassword: testpass123
+userPassword: {SSHA}fPlkQ4/T42h4451906xo7n/a/XnDDTCG
