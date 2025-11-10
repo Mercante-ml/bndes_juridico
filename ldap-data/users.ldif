@@ -1,13 +1,26 @@
-# dn = "Distinguished Name" (o caminho completo)
-# dc = "Domain Component" (partes do domínio, ex: bndes.gov.br)
-
 # 1. Definir a Unidade Organizacional (pasta) para usuários
 dn: ou=people,dc=bndes,dc=gov,dc=br
 objectClass: organizationalUnit
 ou: people
 
-# 2. Criar o usuário 'testuser' com senha 'testpass123'
-# Este usuário será usado para o login
+# 2. Definir a Unidade Organizacional (pasta) para grupos
+dn: ou=groups,dc=bndes,dc=gov,dc=br
+objectClass: organizationalUnit
+ou: groups
+
+# 3. Criar o grupo de administradores do Django e adicionar o testuser
+dn: cn=django_admins,ou=groups,dc=bndes,dc=gov,dc=br
+objectClass: groupOfNames
+cn: django_admins
+member: uid=testuser,ou=people,dc=bndes,dc=gov,dc=br
+
+# 4. Criar o grupo de staff do Django (inicialmente vazio)
+dn: cn=django_staff,ou=groups,dc=bndes,dc=gov,dc=br
+objectClass: groupOfNames
+cn: django_staff
+# member: uid=outro_usuario,ou=people,dc=bndes,dc=gov,dc=br
+
+# 5. Criar o usuário 'testuser' com senha 'testpass123'
 dn: uid=testuser,ou=people,dc=bndes,dc=gov,dc=br
 objectClass: inetOrgPerson
 uid: testuser

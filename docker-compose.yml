@@ -26,13 +26,7 @@ services:
     ports:
       - "389:389"
     healthcheck:
-      # --- CORREÇÃO AQUI ---
-      # Linha Antiga (muito específica):
-      # test: ["CMD-SHELL", "ldapsearch -x -H ldap://localhost -b dc=bndes,dc=gov,dc=br -s base || exit 1"]
-      
-      # Linha Nova (um "ping" genérico que sempre funciona se o servidor estiver no ar):
       test: ["CMD-SHELL", "ldapsearch -x -H ldap://localhost -b \"\" -s base \"(objectClass=*)\" || exit 1"]
-      
       interval: 10s
       timeout: 5s
       retries: 5
@@ -49,9 +43,9 @@ services:
       db:
         condition: service_healthy
       redis:
-        condition: service_healthy # <-- Refinamento (bom ter)
+        condition: service_healthy
       ldap-server:
-        condition: service_healthy # <-- CORREÇÃO CRÍTICA
+        condition: service_healthy
     env_file:
       - .env
 
@@ -83,7 +77,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # Serviço para o Flower (monitoramento do Celery)
   flower:
     image: mher/flower
     command: ["celery", "--broker=redis://redis:6379/0", "flower"]
