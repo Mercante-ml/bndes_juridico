@@ -1,0 +1,101 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: bndes_postgres_db
+    env_file:
+      - .env
+    volumes:
+      - postgres_data_bndes:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"   
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  ldap-server:
+    image: osixia/openldap:1.5.0
+    container_name: bndes_ldap_local
+    environment:
+      - LDAP_DOMAIN=bndes.gov.br
+      - LDAP_ORGANISATION=BNDES
+      - LDAP_ADMIN_PASSWORD=adminpass
+    volumes:
+      - ./ldap-data:/container/service/slapd/assets/custom_ldif
+    ports:
+      - "389:389"
+    healthcheck:
+      # --- CORREÇÃO AQUI ---
+      # Linha Antiga (muito específica):
+      # test: ["CMD-SHELL", "ldapsearch -x -H ldap://localhost -b dc=bndes,dc=gov,dc=br -s base || exit 1"]
+      
+      # Linha Nova (um "ping" genérico que sempre funciona se o servidor estiver no ar):
+      test: ["CMD-SHELL", "ldapsearch -x -H ldap://localhost -b \"\" -s base \"(objectClass=*)\" || exit 1"]
+      
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build: .
+    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - .:/app
+      - ./media:/app/media
+    ports:
+      - "8000:8000"    
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy # <-- Refinamento (bom ter)
+      ldap-server:
+        condition: service_healthy # <-- CORREÇÃO CRÍTICA
+    env_file:
+      - .env
+
+  celery:
+    build: .
+    command: celery -A config worker -l info
+    volumes:
+      - .:/app
+      - ./media:/app/media    
+    depends_on:
+      db:
+        condition: service_healthy
+      web:
+        condition: service_started
+      redis:
+        condition: service_started
+      ldap-server: 
+        condition: service_healthy
+    env_file:
+      - .env
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"    
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Serviço para o Flower (monitoramento do Celery)
+  flower:
+    image: mher/flower
+    command: ["celery", "--broker=redis://redis:6379/0", "flower"]
+    ports:
+      - "5555:5555"
+    depends_on:
+      redis:
+        condition: service_healthy 
+      ldap-server: 
+        condition: service_healthy
+    env_file:
+      - .env
+
+volumes:
+  postgres_data_bndes:

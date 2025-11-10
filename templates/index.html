@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assistente Jurídico BNDES</title>
+    <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 40px auto; background: #f4f4f4; }
+        #chat-container { border: 1px solid #ccc; background: #fff; padding: 20px; border-radius: 8px; }
+        #response-area { min-height: 200px; border: 1px solid #eee; padding: 10px; margin-bottom: 10px; background: #fafafa; overflow-y: auto; white-space: pre-wrap; } /* white-space é outra opção, mas vamos formatar */
+        #prompt-input { width: 98%; padding: 10px; font-size: 1em; }
+        #send-button { width: 100%; padding: 12px; font-size: 1.1em; background: #004a91; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        #send-button:disabled { background: #ccc; }
+        .prompt-msg, .response-msg { margin-bottom: 15px; }
+        .prompt-msg { font-weight: bold; color: #004a91; }
+        .response-msg { padding-left: 10px; border-left: 3px solid #00a75d; line-height: 1.6; } /* Melhorando a leitura */
+    </style>
+</head>
+<body>
+
+    <div id="chat-container">
+        <h2>Assistente Jurídico (Teste CPSI 003/2025)</h2>
+        
+        <div id="response-area">
+            <div class="response-msg">Olá! Estou pronto para ajudar. (Login do Admin detectado).</div>
+        </div>
+        
+        <textarea id="prompt-input" rows="4" placeholder="Digite sua consulta jurídica aqui..."></textarea>
+        <button id="send-button" disabled>Carregando...</button>
+    </div>
+
+    <script>
+        const promptInput = document.getElementById('prompt-input');
+        const sendButton = document.getElementById('send-button');
+        const responseArea = document.getElementById('response-area');
+
+        // O Django injeta o CSRF token no cookie. Vamos pegá-lo.
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        const csrftoken = getCookie('csrftoken');
+
+        // *** NOVO: Função para formatar a resposta da IA ***
+        function formatAIResponse(message) {
+            let formatted = message;
+            
+            // 1. Converte **negrito** para <strong>negrito</strong>
+            formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            
+            // 2. Converte *italico* para <em>italico</em>
+            formatted = formatted.replace(/\*(.*?)\*/g, '<em>$1</em>');
+            
+            // 3. Converte quebras de linha \n para <br>
+            formatted = formatted.replace(/\n/g, '<br>');
+            
+            return formatted;
+        }
+
+        // *** ALTERADO: Função de adicionar mensagem ***
+        function addMessage(message, type) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = type === 'prompt' ? 'prompt-msg' : 'response-msg';
+            
+            if (type === 'response') {
+                // Usa .innerHTML para renderizar o HTML formatado
+                msgDiv.innerHTML = formatAIResponse(message);
+            } else {
+                // Usa .innerText para o prompt do usuário (mais seguro)
+                msgDiv.innerText = message;
+            }
+            
+            responseArea.appendChild(msgDiv);
+            responseArea.scrollTop = responseArea.scrollHeight;
+        }
+
+        // Função para perguntar ao backend se a task terminou
+        function pollTaskResult(taskId) {
+            const interval = setInterval(() => {
+                fetch(`/api/v1/task-result/${taskId}/`, {
+                    method: 'GET',
+                    headers: { 'X-CSRFToken': csrftoken }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'SUCCESS') {
+                        clearInterval(interval);
+                        addMessage(data.result, 'response'); // Chama a função alterada
+                        sendButton.disabled = false;
+                        sendButton.innerText = 'Enviar';
+                    } else if (data.status === 'FAILURE') {
+                        clearInterval(interval);
+                        addMessage('Erro ao processar a tarefa.', 'response');
+                        sendButton.disabled = false;
+                        sendButton.innerText = 'Enviar';
+                    }
+                })
+                .catch(err => {
+                    clearInterval(interval);
+                    addMessage('Erro de conexão ao verificar tarefa.', 'response');
+                    sendButton.disabled = false;
+                    sendButton.innerText = 'Enviar';
+                });
+            }, 1500);
+        }
+
+        // Ação de Enviar
+        sendButton.addEventListener('click', () => {
+            const promptText = promptInput.value;
+            if (promptText.trim() === '') return;
+
+            addMessage(promptText, 'prompt'); // Chama a função alterada
+            sendButton.disabled = true;
+            sendButton.innerText = 'Processando IA...';
+            promptInput.value = '';
+
+            fetch('/api/v1/chat/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken
+                },
+                body: JSON.stringify({ 'prompt': promptText })
+            })
+            .then(response => {
+                if (response.status === 403) {
+                     throw new Error('Erro 403: Não autenticado. Você fez login no /admin?');
+                }
+                if (!response.ok) {
+                    throw new Error('Erro na API. Status: ' + response.status);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.task_id) {
+                    pollTaskResult(data.task_id);
+                }
+            })
+            .catch(err => {
+                addMessage(err.message, 'response');
+                sendButton.disabled = false;
+                sendButton.innerText = 'Enviar';
+            });
+        });
+
+        // Habilita o botão
+        sendButton.disabled = false;
+        sendButton.innerText = 'Enviar';
+    </script>
+</body>
+</html>

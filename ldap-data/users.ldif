@@ -1,0 +1,18 @@
+# dn = "Distinguished Name" (o caminho completo)
+# dc = "Domain Component" (partes do domínio, ex: bndes.gov.br)
+
+# 1. Definir a Unidade Organizacional (pasta) para usuários
+dn: ou=people,dc=bndes,dc=gov,dc=br
+objectClass: organizationalUnit
+ou: people
+
+# 2. Criar o usuário 'testuser' com senha 'testpass123'
+# Este usuário será usado para o login
+dn: uid=testuser,ou=people,dc=bndes,dc=gov,dc=br
+objectClass: inetOrgPerson
+uid: testuser
+cn: Teste BNDES
+sn: User
+givenName: Teste
+mail: testuser@bndes.gov.br
+userPassword: testpass123
