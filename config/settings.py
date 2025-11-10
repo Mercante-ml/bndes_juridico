@@ -40,15 +40,8 @@ AUTH_LDAP_SERVER_URI = "ldap://ldap-server:389"
 
 
 # 3. Configurações para o nosso OpenLDAP local (MODO TESTE)
-#    Vamos usar um bind "anônimo" (o servidor permite)
-AUTH_LDAP_BIND_ANONYMOUS = True
-
-#    Procura pelo usuário usando o 'uid' (que definimos em users.ldif)
-AUTH_LDAP_USER_SEARCH = LDAPSearch(
-    "ou=people,dc=bndes,dc=gov,dc=br",
-    ldap.SCOPE_SUBTREE,
-    "(uid=%(user)s)",
-)
+#    Vamos usar um template para construir o DN do usuário diretamente
+AUTH_LDAP_USER_DN_TEMPLATE = "uid=%(user)s,ou=people,dc=bndes,dc=gov,dc=br"
 
 
 # 4. Mapeamento (Funciona para ambos os modos)
