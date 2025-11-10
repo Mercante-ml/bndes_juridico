@@ -5,3 +5,4 @@ redis
 psycopg2-binary
 django-auth-ldap
 python-ldap
+django-celery-results
